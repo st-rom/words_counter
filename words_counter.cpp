@@ -11,7 +11,9 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include<bits/stdc++.h>
-std::map<std::string, size_t> d_full;
+//std::map<std::string, size_t> d_full;
+std::vector<std::map<std::string, size_t>> thread_maps;
+
 
 std::string transformer(std::string word){
     std::string new_word;
@@ -45,7 +47,7 @@ inline std::chrono::high_resolution_clock::time_point get_current_time_fenced()
 template<class D>
 inline long long to_us(const D& d)
 {
-    return std::chrono::duration_cast<std::chrono::seconds>(d).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
 }
 
 
@@ -82,17 +84,19 @@ std::vector<std::string> get_args(std::string f){
 	return names;
 }
 
-std::map<std::string, size_t> mapper(int start, int end, std::vector<std::string> everything, std :: mutex& m){
-	//std::vector<std::string> part_of_all;
+void mapper(std::vector<std::string> everything, std :: mutex& m){
 	std::map<std::string, size_t> d;
-    for (int i = start; i < end; i++){
-		//part_of_all.push_back(transformer(everything[i]));
-		m.lock();
-		++d_full[transformer(everything[i])];
-		m.unlock();	
+    for (int i = 0; i < everything.size(); i++){
+		//m.lock();
+		++d[everything[i]];
+		//m.unlock();	
 	}
-	//std::cout << d.size() << std::endl;
-	return d; 
+	m.lock();
+	//for(auto j : d){
+	//	d_full[j.first] += j.second;
+	//}
+	thread_maps.push_back(d);
+	m.unlock();
 }	
 
 int main(int argc, char* argv[]){
@@ -146,24 +150,44 @@ int main(int argc, char* argv[]){
         everything.push_back(word);
     }
     auto stage2_start_time = get_current_time_fenced();
-    std::cout << "Loading: " << to_us(stage2_start_time - stage1_start_time) << " sec" << std::endl;
+	double r1 = to_us(stage2_start_time - stage1_start_time);
+    std::cout << "Loading: " << r1 / 1000 << " sec" << std::endl;
   	double dif = everything.size() / nthreads;
   	int start = 0;
   	int end = dif;
 	std::vector<std::thread> threads;
+	std::vector<std::vector<std::string>> all_smallers;
   	for(int i = 0; i < nthreads; ++i){
       	if(i == nthreads - 1){
 			end = everything.size();
 		}
-    	threads.emplace_back(mapper, start, end, everything, std::ref(m));
+		std::vector<std::string> smaller;
+		for (int i = start; i < end; i++){
+			//m.lock();
+			smaller.push_back(transformer(everything[i]));
+			//m.unlock();	
+		}
+		all_smallers.push_back(smaller);
+    	//threads.emplace_back(mapper, smaller, std::ref(m));
 		start += dif;
 		end += dif;
     }
+	auto stage25_start_time = get_current_time_fenced();
+	for (int i = 0; i < nthreads; ++i){
+		threads.emplace_back(mapper, all_smallers[i], std::ref(m));
+	}
 	for(auto& thread : threads){
 		thread.join();
 	}
+	std::map<std::string, size_t> d_full;
+	for (int i = 0; i < nthreads; i++){
+		for(auto j : thread_maps[i]){
+			d_full[j.first] += j.second;
+		}
+	}
     auto stage3_start_time = get_current_time_fenced();
-    std::cout << "Analyzing: " << to_us(stage3_start_time - stage2_start_time) << " sec" << std::endl;
+	double r2 = to_us(stage3_start_time - stage25_start_time);
+    std::cout << "Analyzing: " << r2 / 1000 << " sec" << std::endl;
     std::ofstream wrfile1(out_by_a);
     std::ofstream wrfile2(out_by_n);
     std::vector<std::pair<std::string, size_t> > pairs;
@@ -180,7 +204,7 @@ int main(int argc, char* argv[]){
               << '\t' << pairs[i].second << '\n';
     }
     auto finish_time = get_current_time_fenced();
-    auto total_time = finish_time - stage1_start_time;
-    std::cout << "Total: " << to_us(total_time) << " sec" << std::endl;
+    double total_time = to_us(finish_time - stage1_start_time);
+    std::cout << "Total: " << total_time / 1000 << " sec" << std::endl;
     return 0;
 }
