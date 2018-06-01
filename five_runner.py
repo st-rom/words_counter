@@ -10,11 +10,11 @@ def words_checker():
 	five_texts = []
 	#thr = []
 	for i in range(5):
-		os.popen("g++ words_counter.cpp -o words_counter")
+		os.popen("g++ -Og -pthread -std=c++11 words_counter3.cpp -o words_counter")
 		if len(sys.argv) == 2:
-			str_cmd = "words_counter {a1}".format(a1=sys.argv[1])
+			str_cmd = "./words_counter {a1}".format(a1=sys.argv[1])
 		else:
-			str_cmd = "words_counter"
+			str_cmd = "./words_counter"
 		p = os.popen(str_cmd)
 		for j in p.readlines():
 			if str(j).startswith("Total"):
